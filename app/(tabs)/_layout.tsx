@@ -2,34 +2,61 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+import Feather from '@expo/vector-icons/Feather';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import PlayMusicFooter from '../music/playMusic/playMusicFooter';
+import { View, StyleSheet } from 'react-native';
+import { scale } from '../lib/reponsiveAuto';
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const tabTint = Colors[colorScheme ?? 'light'].tint;
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: tabTint,
+          headerShown: false,
+          tabBarButton: HapticTab,
+
         }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Trang chủ',
+            tabBarIcon: ({ color }) => <Feather name="home" size={24} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="search"
+          options={{
+            title: 'Tìm kiếm',
+            tabBarIcon: ({ color }) => <Feather name="search" size={24} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="library"
+          options={{
+            title: 'Thư viện',
+            tabBarIcon: ({ color }) => <MaterialIcons name="my-library-music" size={24} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="premium"
+          options={{
+            title: 'Premium',
+            tabBarIcon: ({ color }) => <MaterialIcons name="diamond" size={24} color={color} />,
+          }}
+        />
+      </Tabs>
+      <View style={{ position: 'absolute', bottom: scale(50), width: "100%", alignItems: "center" }} pointerEvents="box-none">
+        <PlayMusicFooter />
+      </View>
+    </View>
   );
 }
