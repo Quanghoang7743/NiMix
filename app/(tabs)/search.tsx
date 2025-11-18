@@ -6,7 +6,7 @@ import { Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 export default function TabTwoScreen() {
   return (
     <>
-      <View style={{ flex: 1, flexDirection: "column", paddingTop: 30, paddingHorizontal: 15, gap: 20, backgroundColor: '#1E1E1E'}}>
+      <View style={{ flex: 1, flexDirection: "column", paddingTop: 50, paddingHorizontal: 15, gap: 20, backgroundColor: '#1E1E1E'}}>
         <View style={{
           flexDirection: "row",
           justifyContent: "space-between"

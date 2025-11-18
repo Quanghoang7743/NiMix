@@ -5,6 +5,7 @@ import useMusicSelectedStore, { MUSIC_ACTION } from '@/app/zustand-store/music-s
 import axios from 'axios'
 import { API_BASE_URL } from '@/app/lib/router-api/api-router'
 
+
 export default function PlaylistComponent() {
     const [loading, setLoading] = React.useState(false)
     const [playlistName, setPlaylistName] = React.useState('')
@@ -34,7 +35,7 @@ export default function PlaylistComponent() {
             })
 
             if (!res.data.data) {
-                throw new Error('Tạo danh sách thất bại')
+                Alert.alert('Thất bại', 'Tạo danh sách thất bại')
             } 
             triggerPlaylistRefresh()
             handleClosePlaylist()

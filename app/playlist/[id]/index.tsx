@@ -3,13 +3,13 @@ import React from 'react'
 import ListItemPlayList from './listItem/list-items'
 
 interface Props {
-    id: string
+    id?: string
 }
 
 export default function PlayList({id}: Props) {
   return (
     <View style={{ width: "100%" }}>
-      <ListItemPlayList />
+      <ListItemPlayList userId={id}/>
     </View>
   )
 }

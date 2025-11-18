@@ -19,6 +19,11 @@ export default function HeaderComponent({
   const auth = useAuth()
   const user = auth.profile as { id?: string; fullName?: string } | null
 
+
+  
+  
+  
+
   const handleNaviSetting = () => {
     const userId = user?.id
     if (!userId) {

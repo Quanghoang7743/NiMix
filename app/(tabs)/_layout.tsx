@@ -10,6 +10,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import PlayMusicFooter from '../music/playMusic/playMusicFooter';
 import { View, StyleSheet } from 'react-native';
 import { scale } from '../lib/reponsiveAuto';
+import MusicWrapper from '../music/[id]';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -54,9 +55,20 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      <View style={{ position: 'absolute', bottom: scale(50), width: "100%", alignItems: "center" }} pointerEvents="box-none">
+      <View 
+        style={{ 
+          position: 'absolute', 
+          bottom: scale(85), 
+          width: "100%", 
+          alignItems: "center" 
+        }} 
+        pointerEvents="box-none"
+      >
         <PlayMusicFooter />
       </View>
+      
+      {/* Render MusicWrapper here instead */}
+      <MusicWrapper />
     </View>
   );
 }

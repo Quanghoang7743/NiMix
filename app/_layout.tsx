@@ -14,7 +14,7 @@ export const unstable_settings = {
 function AuthGuard({ children }: { children: ReactNode }) {
   const segments = useSegments();
   const router = useRouter();
-  const { isAuthenticated, isHydrating } = useAuth();
+  const { isAuthenticated, isHydrating, profile } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = React.useState(false);
 
   useEffect(() => {
@@ -32,15 +32,14 @@ function AuthGuard({ children }: { children: ReactNode }) {
     const currentRoute = segments[1] ?? '';
     const isProtectedAuthRoute = inAuthGroup && ['settings'].includes(currentRoute);
 
-    if (!isAuthenticated && (!inAuthGroup || isProtectedAuthRoute)) {
+    if ((!isAuthenticated || !profile) && (!inAuthGroup || isProtectedAuthRoute)) {
       router.replace('/homeAuth');
-      return;
     }
 
-    if (isAuthenticated && inAuthGroup && !isProtectedAuthRoute) {
+    if (isAuthenticated && profile && inAuthGroup && !isProtectedAuthRoute) {
       router.replace('/(tabs)');
     }
-  }, [segments, isAuthenticated, router, isNavigationReady, isHydrating]);
+  }, [segments, isAuthenticated, profile, router, isNavigationReady, isHydrating]);
 
   return <>{children}</>;
 }

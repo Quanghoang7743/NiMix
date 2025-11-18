@@ -6,12 +6,10 @@ import PlayListSelf from './item-myself'
 import useMusicSelectedStore from '@/app/zustand-store/music-select-store'
 
 interface PlaylistItem {
-    id: number | string
-    name?: string
-    description?: string
+    userId?: string;
 }
 
-export default function ListItemPlayList() {
+export default function ListItemPlayList({userId}: PlaylistItem) {
     const [playList, setPlayList] = useState<PlaylistItem[]>([])
     const [loading, setLoading] = useState(false)
     const playlistRefreshToken = useMusicSelectedStore((state) => state.playlistRefreshToken)
@@ -26,14 +24,7 @@ export default function ListItemPlayList() {
                 : Array.isArray(rawData?.items)
                     ? rawData.items
                     : []
-
-            if (!data.length) {
-                Alert.alert("playlist error")
-            }
-
             setPlayList(data)
-
-
         } catch (error) {
             console.log(error)
         } finally {
@@ -67,7 +58,7 @@ export default function ListItemPlayList() {
         return (
             <FlatList
                 data={playList}
-                keyExtractor={(item, index) => String(item.id ?? index)}
+                keyExtractor={(item, index) => String(item.userId ?? index)}
                 renderItem={({ item }) => (
                     <View style={{ width: '100%' }}>
                         <PlayListSelf item={item} />

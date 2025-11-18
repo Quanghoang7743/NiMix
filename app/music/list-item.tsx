@@ -1,5 +1,6 @@
 import { View, Text, FlatList, Alert, ActivityIndicator } from 'react-native';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
 import { API_BASE_URL } from '../lib/router-api/api-router';
@@ -18,6 +19,7 @@ type Song = {
 export default function ListItemWrapper() {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const { isAuthenticated, isHydrating } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
@@ -26,7 +28,7 @@ export default function ListItemWrapper() {
       setLoading(true);
       try {
         const response = await axios.get(`${API_BASE_URL}/songs`);
-        console.log(response);
+        
         
         const payload = (() => {
           const raw = response.data;
@@ -59,12 +61,16 @@ export default function ListItemWrapper() {
       }
     };
 
+    if (isHydrating || !isAuthenticated) {
+      return;
+    }
+
     fetchSongs();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthenticated, isHydrating]);
 
   const content = useMemo(() => {
     if (loading) {
@@ -88,15 +94,13 @@ export default function ListItemWrapper() {
     return (
       <FlatList
         data={songs}
-        numColumns={2}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <View style={{ width: '48%' }}>
+          <View style={{ width: '100%' }}>
             <MusicItemSelf item={item} />
           </View>
         )}
         contentContainerStyle={{ gap: 16, paddingBottom: 20 }}
-        columnWrapperStyle={{ justifyContent: 'space-between', gap: 16 }}
         showsVerticalScrollIndicator={false}
       />
     );

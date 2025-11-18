@@ -11,6 +11,8 @@ export default function Library() {
 
   const auth = useAuth()
   const user = auth.profile as { id?: string; fullName?: string } | null
+
+  
   const musicSelectStore = useMusicSelectedStore()
   const handleCreatePlaylist = () => {
     musicSelectStore.requestAction(MUSIC_ACTION.PLAYLIST, {})
@@ -19,7 +21,7 @@ export default function Library() {
 
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#1E1E1E', paddingTop: 30, paddingHorizontal: 15, flexDirection: 'column', gap: 20 }}>
+    <View style={{ flex: 1, backgroundColor: '#1E1E1E', paddingTop: 50, paddingHorizontal: 15, flexDirection: 'column', gap: 20 }}>
       <View style={{
         flexDirection: "row",
         justifyContent: "space-between"
@@ -79,7 +81,6 @@ export default function Library() {
       </View>
       <View style={{ flexDirection: 'column', gap: 20, marginTop: 20, width: "100%" }}>
         <PlayList id={user?.id}/>
-        {/* <PlayListSelf item={{}}/> */}
       </View>
       <PlaylistComponent/>
     </View>

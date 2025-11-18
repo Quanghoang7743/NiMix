@@ -1,5 +1,5 @@
 import { View, Modal, StyleSheet, Text, TouchableOpacity, Pressable } from 'react-native'
-import React from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import useMusicSelectedStore, { MUSIC_ACTION } from '@/app/zustand-store/music-select-store'
 import { Image } from 'expo-image'
 import Foundation from '@expo/vector-icons/Foundation'
@@ -7,17 +7,218 @@ import { toMinutes } from '@/app/lib/util'
 import AntDesign from '@expo/vector-icons/AntDesign';
 import Entypo from '@expo/vector-icons/Entypo';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import axios from 'axios'
+import { API_BASE_URL } from '@/app/lib/router-api/api-router'
+import { Alert } from 'react-native'
+import { Audio } from 'expo-av';
 
 export default function MusicWrapper() {
     const musicSelectedStore = useMusicSelectedStore()
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isShuffle, setIsShuffle] = useState(false);
+    const [isLiked, setIsLiked] = useState(false);
+
     const isOpenSelectMusic = () => {
         return !!musicSelectedStore.selected && musicSelectedStore.action === MUSIC_ACTION.SELECT
     }
+
     const handleCloseSelectMusic = () => {
         musicSelectedStore.clear()
     }
+
+    const currentTrack = musicSelectedStore.currentTrack;
     const currentTime = musicSelectedStore.selected?.currentTime || 0;
     const duration = musicSelectedStore.selected?.duration || 0;
+
+    const { title, artist, thumbnail } = useMemo(() => {
+        if (!currentTrack) {
+            return {
+                title: 'Bài hát',
+                artist: 'Không rõ nghệ sĩ',
+                thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=200&q=80',
+            }
+        }
+
+        const title = currentTrack.title ?? currentTrack.name ?? 'Bài hát';
+        let artist = currentTrack.artist ?? currentTrack.artistName ?? 'Không rõ nghệ sĩ';
+
+        if (typeof artist === 'object' && artist !== null) {
+            artist = artist.fullName ?? artist.name ?? 'Không rõ nghệ sĩ';
+        }
+
+        if (typeof artist !== 'string') {
+            artist = 'Không rõ nghệ sĩ';
+        }
+
+        const thumbnail =
+            currentTrack.thumbnail ??
+            currentTrack.coverUrl ??
+            currentTrack.album?.coverUrl ??
+            'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=200&q=80';
+
+        return { title, artist, thumbnail };
+    }, [currentTrack]);
+
+    // Cleanup sound khi unmount hoặc đóng modal
+    useEffect(() => {
+        return () => {
+            if (sound) {
+                sound.unloadAsync();
+            }
+        };
+    }, [sound]);
+
+    // Cập nhật progress bar
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval> | undefined;
+
+        if (sound && isPlaying) {
+            interval = setInterval(async () => {
+                const status = await sound.getStatusAsync();
+                if (status.isLoaded) {
+                    musicSelectedStore.updateTime(
+                        status.positionMillis / 1000,
+                        status.durationMillis ? status.durationMillis / 1000 : 0
+                    );
+                }
+            }, 100);
+        }
+
+
+        return () => {
+            if (interval !== undefined) {
+                clearInterval(interval);
+            }
+        };
+    }, [sound, isPlaying, musicSelectedStore]);
+
+    const handlePlayPause = async () => {
+        if (!currentTrack?.id) {
+            Alert.alert('Lỗi', 'Không tìm thấy bài hát');
+            return;
+        }
+
+        try {
+            setIsLoading(true);
+
+            // Nếu đang phát, tạm dừng
+            if (sound && isPlaying) {
+                await sound.pauseAsync();
+                setIsPlaying(false);
+                setIsLoading(false);
+                return;
+            }
+
+            // Nếu đã có sound và đang pause, tiếp tục phát
+            if (sound && !isPlaying) {
+                await sound.playAsync();
+                setIsPlaying(true);
+                setIsLoading(false);
+                return;
+            }
+
+            // Nếu chưa có sound, load và phát
+            const response = await axios.post(`${API_BASE_URL}/songs/${currentTrack.id}/play`);
+            
+            const audioUrl = response.data.data?.audioUrl || response.data.data?.streamUrl;
+
+
+            if (!audioUrl) {
+                throw new Error('Không tìm thấy URL bài hát');
+            }
+
+            // Cấu hình audio mode
+            await Audio.setAudioModeAsync({
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: true,
+                shouldDuckAndroid: true,
+            });
+
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: audioUrl },
+                { shouldPlay: true },
+                (status) => {
+                    // Callback khi status thay đổi
+                    if (status.isLoaded && status.didJustFinish) {
+                        handleNextTrack();
+                    }
+                }
+            );
+
+            setSound(newSound);
+            setIsPlaying(true);
+            setIsLoading(false);
+
+        } catch (error) {
+            console.error('Failed to play music:', error);
+            setIsLoading(false);
+        }
+    };
+
+    const handlePreviousTrack = async () => {
+        // Nếu đã phát hơn 3 giây, reset về đầu bài
+        if (currentTime > 3) {
+            await sound?.setPositionAsync(0);
+            return;
+        }
+
+        // Chuyển về bài trước
+        if (sound) {
+            await sound.unloadAsync();
+            setSound(null);
+        }
+        setIsPlaying(false);
+        
+        // Gọi hàm previous từ store (cần implement trong store)
+        musicSelectedStore.previousTrack();
+    };
+
+    const handleNextTrack = async () => {
+        if (sound) {
+            await sound.unloadAsync();
+            setSound(null);
+        }
+        setIsPlaying(false);
+        
+        // Gọi hàm next từ store (cần implement trong store)
+        if (isShuffle) {
+            musicSelectedStore.randomTrack();
+        } else {
+            musicSelectedStore.nextTrack();
+        }
+    };
+
+    const handleProgressClick = async (event: any) => {
+        if (!sound || !duration) return;
+
+        const { locationX } = event.nativeEvent;
+        const progressBarWidth = event.nativeEvent.target.measure((x: number, y: number, width: number) => {
+            const percentage = locationX / width;
+            const newPosition = duration * percentage * 1000; // Convert to milliseconds
+            sound.setPositionAsync(newPosition);
+        });
+    };
+
+    const toggleShuffle = () => {
+        setIsShuffle(!isShuffle);
+    };
+
+    const toggleLike = async () => {
+        if (!currentTrack?.id) return;
+
+        try {
+            if (isLiked) {
+                await axios.delete(`${API_BASE_URL}/songs/${currentTrack.id}/like`);
+            } else {
+                await axios.post(`${API_BASE_URL}/songs/${currentTrack.id}/like`);
+            }
+            setIsLiked(!isLiked);
+        } catch (error) {
+            console.error('Failed to toggle like:', error);
+        }
+    };
 
     return (
         <View>
@@ -30,23 +231,27 @@ export default function MusicWrapper() {
                 <View style={styles.modalOverlay}>
                     <View style={styles.drawerContainer}>
                         <View style={{ justifyContent: "center", alignItems: "center" }}>
-                            <TouchableOpacity onPress={handleCloseSelectMusic} style={{ marginTop: 30, padding: 10 }}>
+                            <TouchableOpacity onPress={handleCloseSelectMusic} style={{ marginTop: 50, padding: 10 }}>
                                 <View style={{ width: 50, height: 7, borderRadius: 25, justifyContent: "center", alignItems: "center", backgroundColor: "#ccc" }}>
                                 </View>
                             </TouchableOpacity>
                         </View>
-                        <View style={{ justifyContent: "center", alignItems: "center", paddingHorizontal: 10, gap: 30, marginTop: 20 }}>
+                        <View style={{ justifyContent: "center", alignItems: "center", paddingHorizontal: 10, gap: 30, marginTop: 60 }}>
                             <View>
-                                <Image source={{ uri: 'https://i.ytimg.com/vi/6IX9kq4Ovzc/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAIhCGAHYAQHiAQoIGBACGAY4AUAB&rs=AOn4CLDzlkzM_m90l2n0-4hNHnNBs3hG_Q' }} style={{ width: 345, height: 330, borderRadius: 10 }} />
+                                <Image source={{ uri: thumbnail }} style={{ width: 345, height: 330, borderRadius: 16 }} />
                             </View>
                             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%", paddingHorizontal: 20 }}>
-                                <View style={{ flexDirection: "column", gap: 5 }}>
-                                    <Text style={{ fontSize: 24, color: "#fff", fontWeight: 600 }}>Hoi Tham Nhau</Text>
-                                    <Text style={{ fontSize: 16, color: "#8A9A9D", fontWeight: 500 }}>Son Tung MTP</Text>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: 18, fontWeight: '600', color: '#fff' }} numberOfLines={1}>{title}</Text>
+                                    <Text style={{ fontSize: 14, color: '#A3A3A3' }} numberOfLines={1}>{artist}</Text>
                                 </View>
                                 <View style={{ flexDirection: "row", gap: 20 }}>
-                                    <TouchableOpacity>
-                                        <Foundation name="heart" size={24} color="#fff" />
+                                    <TouchableOpacity onPress={toggleLike}>
+                                        <Foundation 
+                                            name={isLiked ? "heart" : "heart"} 
+                                            size={24} 
+                                            color={isLiked ? "#ef4444" : "#fff"} 
+                                        />
                                     </TouchableOpacity>
                                     <TouchableOpacity>
                                         <AntDesign name="more" size={24} color="#fff" />
@@ -59,7 +264,7 @@ export default function MusicWrapper() {
                                 </Text>
                                 <Pressable
                                     style={styles.progressBarWrapper}
-                                // onPress={handleProgressClick}
+                                    onPress={handleProgressClick}
                                 >
                                     <View style={styles.progressBarBg}>
                                         <View
@@ -77,34 +282,55 @@ export default function MusicWrapper() {
                                 </Text>
                             </View>
                             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "60%" }}>
-                                <TouchableOpacity>
-                                    <Entypo name="controller-fast-backward" size={35} color="#fff" />
+                                <TouchableOpacity onPress={handlePreviousTrack} disabled={isLoading}>
+                                    <Entypo name="controller-fast-backward" size={35} color={isLoading ? "#666" : "#fff"} />
                                 </TouchableOpacity>
-                                <TouchableOpacity style={{ backgroundColor: "#06A0B5", borderRadius: 100, width: 60, height: 60, alignItems: "center", justifyContent: "center", paddingLeft: 5 }}>
-                                    <Entypo name="controller-play" size={40} color="#fff" />
+                                <TouchableOpacity 
+                                    onPress={handlePlayPause} 
+                                    disabled={isLoading}
+                                    style={{ 
+                                        backgroundColor: isLoading ? "#047a8a" : "#06A0B5", 
+                                        borderRadius: 100, 
+                                        width: 60, 
+                                        height: 60, 
+                                        alignItems: "center", 
+                                        justifyContent: "center", 
+                                        paddingLeft: isPlaying ? 0 : 5 
+                                    }}
+                                >
+                                    {isLoading ? (
+                                        <Text style={{ color: '#fff' }}>...</Text>
+                                    ) : isPlaying ? (
+                                        <Foundation name="pause" size={30} color="#fff" />
+                                    ) : (
+                                        <Entypo name="controller-play" size={40} color="#fff" />
+                                    )}
                                 </TouchableOpacity>
-                                <TouchableOpacity>
-                                    <Entypo name="controller-fast-forward" size={35} color="#fff" />
+                                <TouchableOpacity onPress={handleNextTrack} disabled={isLoading}>
+                                    <Entypo name="controller-fast-forward" size={35} color={isLoading ? "#666" : "#fff"} />
                                 </TouchableOpacity>
                             </View>
                             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%", paddingHorizontal: 20 }}>
-                                <TouchableOpacity>
-                                    <Ionicons name="shuffle" size={30} color="#fff" />
+                                <TouchableOpacity onPress={toggleShuffle}>
+                                    <Ionicons 
+                                        name="shuffle" 
+                                        size={30} 
+                                        color={isShuffle ? "#06A0B5" : "#fff"} 
+                                    />
                                 </TouchableOpacity>
-                               <View style={{ flexDirection: "row", gap: 20 }}>
-                                 <TouchableOpacity>
-                                    <Entypo name="share-alternative" size={24} color="#fff" />
-                                </TouchableOpacity>
-                                 <TouchableOpacity>
-                                    <Foundation name="sound" size={30} color="#fff" />
-                                </TouchableOpacity>
-                               </View>
+                                <View style={{ flexDirection: "row", gap: 20 }}>
+                                    <TouchableOpacity>
+                                        <Entypo name="share-alternative" size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity>
+                                        <Foundation name="sound" size={30} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </View>
                     </View>
                 </View>
             </Modal>
-
         </View>
     )
 }
@@ -131,7 +357,7 @@ const styles = StyleSheet.create({
     },
     timeText: {
         fontSize: 12,
-        color: '#94a3b8', // slate-400
+        color: '#94a3b8',
         width: 40,
         textAlign: 'right',
     },
@@ -140,13 +366,13 @@ const styles = StyleSheet.create({
     },
     progressBarBg: {
         height: 4,
-        backgroundColor: '#334155', // slate-700
+        backgroundColor: '#334155',
         borderRadius: 9999,
         overflow: 'hidden',
     },
     progressBarFill: {
         height: '100%',
-        backgroundColor: '#06b6d4', // cyan-400 (gradient không có sẵn, dùng màu đơn)
+        backgroundColor: '#06b6d4',
         borderRadius: 9999,
         position: 'relative',
         justifyContent: 'center',
@@ -157,6 +383,5 @@ const styles = StyleSheet.create({
         height: 12,
         backgroundColor: '#ffffff',
         borderRadius: 6,
-        // Hover effect cần xử lý riêng trong React Native
     }
 })
