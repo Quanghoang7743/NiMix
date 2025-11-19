@@ -1,4 +1,5 @@
 import {create} from 'zustand'
+import { Audio } from 'expo-av';
 
 export const enum MUSIC_ACTION {
     SELECT = "SELECT",
@@ -13,6 +14,14 @@ interface MusicFilterState {
     currentTrack: { [key: string]: any } | null;
     playlist: Array<{ [key: string]: any }>;
     currentIndex: number;
+    
+    // Shared audio state
+    sound: Audio.Sound | null;
+    isPlaying: boolean;
+    currentTime: number;
+    duration: number;
+    isShuffle: boolean;
+    isLiked: boolean;
 
     // Actions cơ bản
     setSelected: (music: { [key: string]: any }) => void;
@@ -31,6 +40,12 @@ interface MusicFilterState {
     previousTrack: () => void;
     randomTrack: () => void;
     goToTrack: (index: number) => void;
+    
+    // Shared audio actions
+    setSound: (sound: Audio.Sound | null) => void;
+    setIsPlaying: (playing: boolean) => void;
+    setIsShuffle: (shuffle: boolean) => void;
+    setIsLiked: (liked: boolean) => void;
 }
 
 const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
@@ -51,6 +66,20 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
     
     playlist: [],
     currentIndex: 0,
+    
+    // Shared audio state
+    sound: null,
+    isPlaying: false,
+    currentTime: 0,
+    duration: 0,
+    isShuffle: false,
+    isLiked: false,
+    
+    setSound: (sound) => set({ sound }),
+    setIsPlaying: (playing) => set({ isPlaying: playing }),
+    setIsShuffle: (shuffle) => set({ isShuffle: shuffle }),
+    setIsLiked: (liked) => set({ isLiked: liked }),
+    
     setPlaylist: (playlist, startIndex = 0) => {
         set(() => ({
             playlist,
@@ -90,6 +119,8 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
                 },
                 action: MUSIC_ACTION.SELECT,
                 currentIndex: resolvedIndex,
+                currentTime: 0,
+                duration: 0,
             };
         });
     },
@@ -108,10 +139,14 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
     
     // Cập nhật thời gian phát
     updateTime: (currentTime: number, duration: number) => {
-        set((state) => ({
-            selected: state.selected 
-                ? { ...state.selected, currentTime, duration }
-                : { currentTime, duration }
+        set(() => ({
+            currentTime,
+            duration,
+            selected: {
+                ...get().selected,
+                currentTime,
+                duration
+            }
         }));
     },
     
@@ -131,7 +166,9 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
                 ...nextTrack,
                 currentTime: 0,
                 duration: 0
-            }
+            },
+            currentTime: 0,
+            duration: 0,
         }));
     },
     
@@ -151,7 +188,9 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
                 ...prevTrack,
                 currentTime: 0,
                 duration: 0
-            }
+            },
+            currentTime: 0,
+            duration: 0,
         }));
     },
     
@@ -160,12 +199,10 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
         const { playlist, currentIndex } = get();
         
         if (playlist.length <= 1) {
-            // Nếu chỉ có 1 bài hoặc không có bài, gọi next bình thường
             get().nextTrack();
             return;
         }
         
-        // Chọn index ngẫu nhiên khác với index hiện tại
         let randomIndex;
         do {
             randomIndex = Math.floor(Math.random() * playlist.length);
@@ -180,7 +217,9 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
                 ...randomTrack,
                 currentTime: 0,
                 duration: 0
-            }
+            },
+            currentTime: 0,
+            duration: 0,
         }));
     },
     
@@ -199,7 +238,9 @@ const useMusicSelectedStore = create<MusicFilterState>((set, get) => ({
                 ...track,
                 currentTime: 0,
                 duration: 0
-            }
+            },
+            currentTime: 0,
+            duration: 0,
         }));
     },
 }));

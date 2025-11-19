@@ -1,5 +1,5 @@
 import { View, Modal, StyleSheet, Text, TouchableOpacity, Pressable } from 'react-native'
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useEffect } from 'react'
 import useMusicSelectedStore, { MUSIC_ACTION } from '@/app/zustand-store/music-select-store'
 import { Image } from 'expo-image'
 import Foundation from '@expo/vector-icons/Foundation'
@@ -13,24 +13,36 @@ import { Alert } from 'react-native'
 import { Audio } from 'expo-av';
 
 export default function MusicWrapper() {
-    const musicSelectedStore = useMusicSelectedStore()
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isShuffle, setIsShuffle] = useState(false);
-    const [isLiked, setIsLiked] = useState(false);
+    const {
+        currentTrack,
+        selected,
+        action,
+        isLoading,
+        sound,
+        isPlaying,
+        currentTime,
+        duration,
+        isShuffle,
+        isLiked,
+        setSound,
+        setIsPlaying,
+        setIsLoading,
+        setIsShuffle,
+        setIsLiked,
+        clear,
+        updateTime,
+        nextTrack,
+        previousTrack,
+        randomTrack,
+    } = useMusicSelectedStore()
 
     const isOpenSelectMusic = () => {
-        return !!musicSelectedStore.selected && musicSelectedStore.action === MUSIC_ACTION.SELECT
+        return !!selected && action === MUSIC_ACTION.SELECT
     }
 
     const handleCloseSelectMusic = () => {
-        musicSelectedStore.clear()
+        clear()
     }
-
-    const currentTrack = musicSelectedStore.currentTrack;
-    const currentTime = musicSelectedStore.selected?.currentTime || 0;
-    const duration = musicSelectedStore.selected?.duration || 0;
 
     const { title, artist, thumbnail } = useMemo(() => {
         if (!currentTrack) {
@@ -68,7 +80,7 @@ export default function MusicWrapper() {
                 sound.unloadAsync();
             }
         };
-    }, [sound]);
+    }, []);
 
     // Cập nhật progress bar
     useEffect(() => {
@@ -76,23 +88,35 @@ export default function MusicWrapper() {
 
         if (sound && isPlaying) {
             interval = setInterval(async () => {
-                const status = await sound.getStatusAsync();
-                if (status.isLoaded) {
-                    musicSelectedStore.updateTime(
-                        status.positionMillis / 1000,
-                        status.durationMillis ? status.durationMillis / 1000 : 0
-                    );
+                try {
+                    const status = await sound.getStatusAsync();
+                    if (status.isLoaded) {
+                        updateTime(
+                            status.positionMillis / 1000,
+                            status.durationMillis ? status.durationMillis / 1000 : 0
+                        );
+
+                        // Tự động chuyển sang bài tiếp theo
+                        if (status.didJustFinish) {
+                            if (isShuffle) {
+                                randomTrack();
+                            } else {
+                                nextTrack();
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error updating time:', error);
                 }
             }, 100);
         }
-
 
         return () => {
             if (interval !== undefined) {
                 clearInterval(interval);
             }
         };
-    }, [sound, isPlaying, musicSelectedStore]);
+    }, [sound, isPlaying, isShuffle]);
 
     const handlePlayPause = async () => {
         if (!currentTrack?.id) {
@@ -124,7 +148,6 @@ export default function MusicWrapper() {
             
             const audioUrl = response.data.data?.audioUrl || response.data.data?.streamUrl;
 
-
             if (!audioUrl) {
                 throw new Error('Không tìm thấy URL bài hát');
             }
@@ -138,13 +161,7 @@ export default function MusicWrapper() {
 
             const { sound: newSound } = await Audio.Sound.createAsync(
                 { uri: audioUrl },
-                { shouldPlay: true },
-                (status) => {
-                    // Callback khi status thay đổi
-                    if (status.isLoaded && status.didJustFinish) {
-                        handleNextTrack();
-                    }
-                }
+                { shouldPlay: true }
             );
 
             setSound(newSound);
@@ -153,6 +170,7 @@ export default function MusicWrapper() {
 
         } catch (error) {
             console.error('Failed to play music:', error);
+            Alert.alert('Lỗi', 'Không thể phát bài hát');
             setIsLoading(false);
         }
     };
@@ -170,9 +188,7 @@ export default function MusicWrapper() {
             setSound(null);
         }
         setIsPlaying(false);
-        
-        // Gọi hàm previous từ store (cần implement trong store)
-        musicSelectedStore.previousTrack();
+        previousTrack();
     };
 
     const handleNextTrack = async () => {
@@ -182,11 +198,10 @@ export default function MusicWrapper() {
         }
         setIsPlaying(false);
         
-        // Gọi hàm next từ store (cần implement trong store)
         if (isShuffle) {
-            musicSelectedStore.randomTrack();
+            randomTrack();
         } else {
-            musicSelectedStore.nextTrack();
+            nextTrack();
         }
     };
 
@@ -194,9 +209,9 @@ export default function MusicWrapper() {
         if (!sound || !duration) return;
 
         const { locationX } = event.nativeEvent;
-        const progressBarWidth = event.nativeEvent.target.measure((x: number, y: number, width: number) => {
+        const width = event.nativeEvent.target.measure((x: number, y: number, width: number) => {
             const percentage = locationX / width;
-            const newPosition = duration * percentage * 1000; // Convert to milliseconds
+            const newPosition = duration * percentage * 1000;
             sound.setPositionAsync(newPosition);
         });
     };

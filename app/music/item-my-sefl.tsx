@@ -14,14 +14,15 @@ interface MusicItemSelfProps {
     artist?: string;
     artistName?: string | { fullName?: string; name?: string } | null;
   };
+  playlist?: Array<{ [key: string]: any }>;
 }
 
-export default function MusicItemSelf({ item }: MusicItemSelfProps) {
-  const setCurrentTrack = useMusicSelectedStore((state) => state.setCurrentTrack);
+export default function MusicItemSelf({ item, playlist }: MusicItemSelfProps) {
+  const playTrack = useMusicSelectedStore((state) => state.playTrack);
 
   const handlePress = useCallback(() => {
-    setCurrentTrack(item);
-  }, [item, setCurrentTrack]);
+    playTrack(item, playlist);
+  }, [item, playlist, playTrack]);
 
   const { displayName, displayArtist, displayThumbnail } = useMemo(() => {
     const displayName = item.title ?? item.name ?? 'Bài hát';
